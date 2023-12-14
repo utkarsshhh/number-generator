@@ -26,13 +26,23 @@ from torch.utils.data import DataLoader, TensorDataset,random_split
 data = pd.read_csv('data.csv')
 print (data.head())
 
-features = data.drop(lables = 'result',axis = 1)
+features = data.drop(labels = 'result',axis = 1)
 target = data['result']
 
-x = torch.tensor(features.values)
-y = torch.tensor(target.values)
+x = torch.tensor(features.values,dtype=torch.float32)
+y = torch.tensor(target.values, dtype=torch.float32)
 
 dataset = TensorDataset(x,y)
+
+train_size = int(0.8*len(dataset))
+test_size = len(dataset)-train_size
+
+train_data,test_data = random_split(dataset,[train_size,test_size])
+
+batch_size = 64
+
+train_loader = DataLoader(train_data,batch_size=batch_size,shuffle=True)
+test_loader = DataLoader(test_data,batch_size = batch_size,shuffle = False)
 
 
 class MyModel(nn.Module):
@@ -40,11 +50,11 @@ class MyModel(nn.Module):
         super().__init__()
         self.model = nn.Sequential(
             nn.Linear(2,16),
-            nn.BatchNorm1d(),
+            nn.BatchNorm1d(16),
             nn.ReLU(),
 
             nn.Linear(16, 8),
-            nn.BatchNorm1d(),
+            nn.BatchNorm1d(8),
             nn.ReLU(),
 
             nn.Linear(8, 1)
@@ -52,8 +62,27 @@ class MyModel(nn.Module):
     def forward(self,x):
         return self.model(x)
 
-optimizer = SGD()
-loss  = nn.MSELoss()
-n_epochs = 20
 
-for _ in range(n_epochs):
+model = MyModel()
+optimizer = SGD(model.parameters(),lr = 0.001)
+criterion  = nn.MSELoss()
+n_epochs = 30
+
+for i in range(n_epochs):
+    model.train()
+    for features,target in train_loader:
+        optimizer.zero_grad()
+        outputs = model(features)
+        loss = criterion(outputs.view(-1),target)
+        loss.backward()
+        optimizer.step()
+
+    print ('Loss for Epoch ',i+1," : ",loss)
+
+model.eval()
+for features,target in test_loader:
+    outputs = model(features)
+    loss =criterion(outputs.view(-1),target)
+
+    print ()
+
